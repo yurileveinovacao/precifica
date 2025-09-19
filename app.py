@@ -4,6 +4,11 @@ import pandas as pd
 from openai import OpenAI
 from weaviate.classes.config import Property, DataType
 import os
+import logging
+
+# Configurar logging
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
 
 # Configurar OpenAI
 client_openai = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
@@ -21,6 +26,7 @@ def get_embedding(text):
 
 # Função para buscar produtos similares
 def search_products(query, limit=5):
+    logger.info(f"Buscando produtos para query: {query}")
     collection = client.collections.get("Produto")
     query_vector = get_embedding(query)
     response = collection.query.near_vector(
@@ -28,7 +34,9 @@ def search_products(query, limit=5):
         limit=limit,
         return_properties=["produto", "valor_unitario", "fornecedor"]
     )
-    return response.objects
+    products = response.objects
+    logger.info(f"Encontrados {len(products)} produtos: {[p.properties['produto'] for p in products]}")
+    return products
 
 # Função para gerar resposta com GPT-4
 def generate_response(query, products):
@@ -37,11 +45,14 @@ def generate_response(query, products):
         for p in products
     ])
     prompt = f"Baseado nos produtos abaixo, responda à pergunta do cliente sobre precificação:\n\nProdutos:\n{context}\n\nPergunta: {query}"
+    logger.info(f"Gerando resposta para query: {query} com contexto: {context}")
     response = client_openai.chat.completions.create(
         model="gpt-4",
         messages=[{"role": "user", "content": prompt}]
     )
-    return response.choices[0].message.content
+    answer = response.choices[0].message.content
+    logger.info(f"Resposta gerada: {answer}")
+    return answer
 
 # Interface Streamlit
 st.title("Precifica - Assistente de Precificação para Padarias")
